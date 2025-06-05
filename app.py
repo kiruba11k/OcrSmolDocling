@@ -10,8 +10,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import fitz  
 
-load_dotenv()
-HF_TOKEN = os.getenv("HF_TOKEN")
+HF_TOKEN = st.secrets["HF_TOKEN"]
 
 try:
     from transformers import AutoProcessor, AutoModelForVision2Seq
