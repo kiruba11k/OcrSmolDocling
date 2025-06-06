@@ -34,7 +34,7 @@ def check_dependencies():
         missing.append("docling-core")
     return missing
 
-def process_single_image(image, prompt_text="Extract name, designation, and company for each person in the image in a tab-separated format."):
+def process_single_image(image, prompt_text="Convert this page to docling."):
     if HF_TOKEN:
         login(token=HF_TOKEN)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -50,29 +50,46 @@ def process_single_image(image, prompt_text="Extract name, designation, and comp
         st.error(f"Error loading model: {str(e)}")
         raise
 
-    messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": prompt_text}]}]
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image"},
+                {"type": "text", "text": prompt_text}
+            ]
+        },
+    ]
+    
+    # Prepare inputs
     prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
-    inputs = processor(text=prompt, images=[image], return_tensors="pt").to(device)
-    generated_ids = model.generate(**inputs, max_new_tokens=1024)
+    inputs = processor(text=prompt, images=[image], return_tensors="pt")
+    inputs = inputs.to(device)
+    
+    # Generate outputs
+    generated_ids = model.generate(**inputs, max_new_tokens=1024)  # Reduced for testing
     prompt_length = inputs.input_ids.shape[1]
     trimmed_generated_ids = generated_ids[:, prompt_length:]
-    doctags = processor.batch_decode(trimmed_generated_ids, skip_special_tokens=False)[0].lstrip()
+    doctags = processor.batch_decode(
+        trimmed_generated_ids,
+        skip_special_tokens=False,
+    )[0].lstrip()
+    
+    # Clean the output
     doctags = doctags.replace("<end_of_utterance>", "").strip()
-
+    
+    # Populate document
     doctags_doc = DocTagsDocument.from_doctags_and_image_pairs([doctags], [image])
+    
+    # Create a docling document
     doc = DoclingDocument(name="Document")
     doc.load_from_doctags(doctags_doc)
+    
+    # Export as markdown
     md_content = doc.export_to_markdown()
+    
     processing_time = time.time() - start_time
-
-    tab_lines = []
-    pattern = re.compile(r"^(.*?)[\t\-|]+(.*?)[\t\-|]+(.*?)$", re.MULTILINE)
-    matches = pattern.findall(md_content)
-    for match in matches:
-        tab_lines.append("\t".join([m.strip() for m in match]))
-    tsv_output = "\n".join(tab_lines)
-
-    return doctags, md_content, processing_time, tsv_output
+    
+    return doctags, md_content, processing_time
 
 def main():
     st.set_page_config(page_title="SmolDocling OCR App", layout="wide")
