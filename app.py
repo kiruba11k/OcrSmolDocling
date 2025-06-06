@@ -108,10 +108,10 @@ def process_single_image(image, prompt_text="Convert this page to docling."):
     md_content = doc.export_to_markdown()
 
     # Extract structured TSV
-    tsv_output = extract_tsv_from_doctags(doctags)
+    # tsv_output = extract_tsv_from_doctags(doctags)
 
     processing_time = time.time() - start_time
-    return doctags, md_content, processing_time, tsv_output
+    return doctags, md_content, processing_time
 
 
 def main():
@@ -141,7 +141,7 @@ def main():
                     for idx, image in enumerate(images):
                         st.write(f"Processing image {idx+1}/{len(images)}...")
                         doctags, md_content, proc_time, tsv_output = process_single_image(image)
-                        results.append((image, doctags, md_content, proc_time, tsv_output))
+                        results.append((image, doctags, md_content, proc_time))
 
                     for idx, (img, doctags, md_content, proc_time, tsv_output) in enumerate(results):
                         with st.expander(f"Image {idx+1} Results"):
@@ -149,8 +149,8 @@ def main():
                             with col1:
                                 st.image(img, caption=f"Image {idx+1}", width=250)
                                 st.download_button(f"Download DocTags {idx+1}", doctags, file_name=f"output_{idx+1}.dt")
-                                st.download_button(f"Download TSV {idx+1}", tsv_output, file_name=f"output_{idx+1}.tsv")
-                                st.text_area(f"TSV Output {idx+1}", tsv_output, height=200)
+                                # st.download_button(f"Download TSV {idx+1}", tsv_output, file_name=f"output_{idx+1}.tsv")
+                                # st.text_area(f"TSV Output {idx+1}", tsv_output, height=200)
                             with col2:
                                 st.markdown(md_content)
                                 st.download_button(f"Download Markdown {idx+1}", md_content, file_name=f"output_{idx+1}.md")
