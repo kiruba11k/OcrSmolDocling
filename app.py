@@ -40,23 +40,26 @@ def check_dependencies():
 
 
 # TSV extractor from DoclingDocument
-def extract_tsv_from_doc(doc: DoclingDocument) -> str:
+def extract_tsv_from_doctags(doctags_text: str) -> str:
     """
-    Extract Name, Designation, Company fields from DoclingDocument into TSV format.
+    Extract name, designation, and company from raw doctags text using regex.
     """
     tsv_rows = []
     header = ["Name", "Designation", "Company"]
     tsv_rows.append("\t".join(header))
 
-    for element in doc.elements:
-        if hasattr(element, "fields"):
-            name = element.fields.get("name", "").strip()
-            designation = element.fields.get("designation", "").strip()
-            company = element.fields.get("company", "").strip()
+    # Find all entities (e.g., name=..., designation=..., company=...)
+    name_match = re.findall(r'name\s*=\s*"([^"]+)"', doctags_text)
+    designation_match = re.findall(r'designation\s*=\s*"([^"]+)"', doctags_text)
+    company_match = re.findall(r'company\s*=\s*"([^"]+)"', doctags_text)
 
-            if name or designation or company:
-                row = [name, designation, company]
-                tsv_rows.append("\t".join(row))
+    max_len = max(len(name_match), len(designation_match), len(company_match))
+
+    for i in range(max_len):
+        name = name_match[i] if i < len(name_match) else ""
+        desig = designation_match[i] if i < len(designation_match) else ""
+        comp = company_match[i] if i < len(company_match) else ""
+        tsv_rows.append("\t".join([name, desig, comp]))
 
     return "\n".join(tsv_rows)
 
@@ -105,7 +108,7 @@ def process_single_image(image, prompt_text="Convert this page to docling."):
     md_content = doc.export_to_markdown()
 
     # Extract structured TSV
-    tsv_output = extract_tsv_from_doc(doc)
+    tsv_output = extract_tsv_from_doctags(doctags)
 
     processing_time = time.time() - start_time
     return doctags, md_content, processing_time, tsv_output
