@@ -1,17 +1,19 @@
-
 import streamlit as st
 import os
 import time
 import torch
-import tempfile
-import re
 from PIL import Image
-from pathlib import Path
 from dotenv import load_dotenv
-import fitz  
+import re
 
+# PDF image extraction support
+import fitz  # PyMuPDF
+
+# Load .env variables
+load_dotenv()
 HF_TOKEN = st.secrets["HF_TOKEN"]
 
+# Dependency flags
 try:
     from transformers import AutoProcessor, AutoModelForVision2Seq
     from huggingface_hub import login
@@ -26,6 +28,8 @@ try:
 except ImportError:
     docling_available = False
 
+
+# Dependency check
 def check_dependencies():
     missing = []
     if not transformers_available:
@@ -34,6 +38,30 @@ def check_dependencies():
         missing.append("docling-core")
     return missing
 
+
+# TSV extractor from DoclingDocument
+def extract_tsv_from_doc(doc: DoclingDocument) -> str:
+    """
+    Extract Name, Designation, Company fields from DoclingDocument into TSV format.
+    """
+    tsv_rows = []
+    header = ["Name", "Designation", "Company"]
+    tsv_rows.append("\t".join(header))
+
+    for element in doc.elements:
+        if hasattr(element, "fields"):
+            name = element.fields.get("name", "").strip()
+            designation = element.fields.get("designation", "").strip()
+            company = element.fields.get("company", "").strip()
+
+            if name or designation or company:
+                row = [name, designation, company]
+                tsv_rows.append("\t".join(row))
+
+    return "\n".join(tsv_rows)
+
+
+# Image processing function
 def process_single_image(image, prompt_text="Convert this page to docling."):
     if HF_TOKEN:
         login(token=HF_TOKEN)
@@ -59,37 +87,29 @@ def process_single_image(image, prompt_text="Convert this page to docling."):
             ]
         },
     ]
-    
-    # Prepare inputs
+
     prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
-    inputs = processor(text=prompt, images=[image], return_tensors="pt")
-    inputs = inputs.to(device)
-    
-    # Generate outputs
-    generated_ids = model.generate(**inputs, max_new_tokens=1024)  # Reduced for testing
+    inputs = processor(text=prompt, images=[image], return_tensors="pt",truncation=True).to(device)
+
+    generated_ids = model.generate(**inputs, max_new_tokens=1024)
     prompt_length = inputs.input_ids.shape[1]
     trimmed_generated_ids = generated_ids[:, prompt_length:]
-    doctags = processor.batch_decode(
-        trimmed_generated_ids,
-        skip_special_tokens=False,
-    )[0].lstrip()
     
-    # Clean the output
+    doctags = processor.batch_decode(trimmed_generated_ids, skip_special_tokens=False)[0].lstrip()
     doctags = doctags.replace("<end_of_utterance>", "").strip()
-    
-    # Populate document
+
+    # Construct Docling object
     doctags_doc = DocTagsDocument.from_doctags_and_image_pairs([doctags], [image])
-    
-    # Create a docling document
     doc = DoclingDocument(name="Document")
     doc.load_from_doctags(doctags_doc)
-    
-    # Export as markdown
     md_content = doc.export_to_markdown()
-    
+
+    # Extract structured TSV
+    tsv_output = extract_tsv_from_doc(doc)
+
     processing_time = time.time() - start_time
-    
-    return doctags, md_content, processing_time
+    return doctags, md_content, processing_time, tsv_output
+
 
 def main():
     st.set_page_config(page_title="SmolDocling OCR App", layout="wide")
@@ -135,6 +155,7 @@ def main():
                     st.success("All images processed successfully.")
                 except Exception as e:
                     st.error(f"Error processing images: {str(e)}")
+
 
 if __name__ == "__main__":
     main()
