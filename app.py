@@ -140,10 +140,10 @@ def main():
                     results = []
                     for idx, image in enumerate(images):
                         st.write(f"Processing image {idx+1}/{len(images)}...")
-                        doctags, md_content, proc_time, tsv_output = process_single_image(image)
+                        doctags, md_content, proc_time = process_single_image(image)
                         results.append((image, doctags, md_content, proc_time))
 
-                    for idx, (img, doctags, md_content, proc_time, tsv_output) in enumerate(results):
+                    for idx, (img, doctags, md_content, proc_time) in enumerate(results):
                         with st.expander(f"Image {idx+1} Results"):
                             col1, col2 = st.columns(2)
                             with col1:
